@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1953259897 &8574412962073106934
+TerrainLayer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: desert3
+  m_DiffuseTexture: {fileID: 2800000, guid: 939a494f0f0aa5e4e9c93a44366a7aa7, type: 3}
+  m_NormalMapTexture: {fileID: 2800000, guid: 6db55e330251eaa408dbab8df5109986, type: 3}
+  m_MaskMapTexture: {fileID: 2800000, guid: 60edf093ce6948148a34e241f33fbf87, type: 3}
+  m_TileSize: {x: 6, y: 6}
+  m_TileOffset: {x: 0, y: 0}
+  m_Specular: {r: 0, g: 0, b: 0, a: 0}
+  m_Metallic: 0
+  m_Smoothness: 0
+  m_NormalScale: 1
+  m_DiffuseRemapMin: {x: 0, y: 0, z: 0, w: 0}
+  m_DiffuseRemapMax: {x: 1, y: 1, z: 1, w: 1}
+  m_MaskMapRemapMin: {x: 0, y: 0, z: 0, w: 0}
+  m_MaskMapRemapMax: {x: 1, y: 0.1898734, z: 1, w: 1}
