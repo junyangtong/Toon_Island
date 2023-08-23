@@ -6,6 +6,7 @@ Shader "Island/Water"
         _NormalMap          ("法线贴图",2D)    = "bump" {}
         _WarpMap            ("扰动图",2D)    = "bump" {}
         _FoamTex            ("岸边泡沫贴图",2D) = "White"{}
+        _RainTex            ("雨天涟漪",2D) = "White"{}
         [Header(Depth)]
         _DepthRange         ("深度范围",float) = 1
         _AlphaRange         ("透明范围",float) = 1
@@ -31,13 +32,15 @@ Shader "Island/Water"
         _WarpInt            ("扭曲强度", Range(0,1)) = 0.3
         [Header(Normal)]
         _NormalIntensity    ("法线扰动强度",Range(0,1)) = 0.1
-        _NormalScale        ("法线缩放",Range(0,40)) = 10
+        _NormalScale        ("法线缩放",Range(0,80)) = 40
         _WaveXSpeed         ("x轴速度",Range(-1,1)) = 1
         _WaveYSpeed         ("y轴速度",Range(-1,1)) = -1
         [Header(Specular)]
         _SpecularColor      ("高光颜色",Color) = (1,1,1,1)
 		_SpecularRange      ("高光范围",Range(0.1,200)) = 200
 		_SpecularStrenght   ("高光强度",Range(0.1,4)) = 1
+        [Header(Rain)]
+        _RainInt            ("雨天涟漪强度", Range(0,1)) = 1
         [Header(Other)]
         _Foam               ("岸边泡沫  x:拉伸 y:速度 z:范围",Vector) = (1.0,1.0,1.0,1.0)
         _RippleColor        ("交互水波颜色", Color) = (1, 1, 1, 1) 
@@ -114,6 +117,7 @@ Shader "Island/Water"
 			float _SpecularRange;
 			float _SpecularStrenght;
 			float4 _Foam;
+            float _RainInt;
 
             float3 _Position;
             float _OrthographicCamSize;
@@ -128,7 +132,9 @@ Shader "Island/Water"
             float4 _WarpMap_ST;
             TEXTURE2D(_ReflectionTex);
             TEXTURE2D(_FoamTex) ;
-			float4 _FoamTex_ST;
+            float4 _FoamTex_ST;
+            TEXTURE2D(_RainTex) ;
+			float4 _RainTex_ST;
             TEXTURE2D(_GlobalRipplesRT);
             TEXTURE2D(_CameraOpaqueTexture);
             // 贴图采样器
@@ -325,8 +331,8 @@ Shader "Island/Water"
 				float lh = max(saturate(dot(lDir, hDir)), 0.000001);
 				float nh = max(saturate(dot(nDirWS, hDir)), 0.000001);
                 //纹理采样
-                float3 offsetColor1 = SAMPLE_TEXTURE2D(_WarpMap,smp_Point_Repeat,i.uv * _WarpMap_ST + _Time.x * _FlowSpeed).rgb;
-                float3 offsetColor2 = SAMPLE_TEXTURE2D(_WarpMap,smp_Point_Repeat,i.uv * _WarpMap_ST - _Time.x * _FlowSpeed).rgb;
+                float3 offsetColor1 = SAMPLE_TEXTURE2D(_WarpMap,smp_Point_Repeat,i.uv * _WarpMap_ST.xy + _Time.x * _FlowSpeed).rgb;
+                float3 offsetColor2 = SAMPLE_TEXTURE2D(_WarpMap,smp_Point_Repeat,i.uv * _WarpMap_ST.xy - _Time.x * _FlowSpeed).rgb;
                 //提取信息
                 float2 warp = (offsetColor1.rg - 0.5) * _WarpInt + (offsetColor2.rg - 0.5) * -_WarpInt;
                 float noise = offsetColor1.b + offsetColor2.b;
@@ -335,30 +341,38 @@ Shader "Island/Water"
 
                 //光照计算
                     //深度颜色渐变
-                    float depth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, smp_Point_Repeat, screenPos).r;     //获取相机深度图
+                    float depth = SAMPLE_TEXTURE2D_X(_CameraDepthTexture, smp_Point_Repeat, screenPos).r;    //获取相机深度图
                     float backgroundDepth = LinearEyeDepth(depth, _ZBufferParams);
                     float surfaceDepth = i.scrPos.w;
                     float viewWaterDepth = backgroundDepth - surfaceDepth;	                                //深度差值
-                    float viewWaterDepth01 = saturate(viewWaterDepth / _DepthRange);            //取绝对值返回比例
+                    float viewWaterDepth01 = saturate(viewWaterDepth / _DepthRange);                        //取绝对值返回比例
                     viewWaterDepth01 = viewWaterDepth01;
-                    float4 depthCol = lerp(_WaterShallowColr, _WaterDeepColr, viewWaterDepth01);             //控制浅水区和深水区颜色
+                    float4 depthCol = lerp(_WaterShallowColr, _WaterDeepColr, viewWaterDepth01);            //控制浅水区和深水区颜色
                     //折射
                     float4 refraction = SAMPLE_TEXTURE2D(_CameraOpaqueTexture, smp_Point_Repeat, warpScreenPos);
                     float alphaRange = saturate(viewWaterDepth / _AlphaRange);
-                    float3 diffColor =  lerp(refraction.rgb,depthCol.rgb,alphaRange) * light.color.rgb  * _Diffcol;
+                    float3 diffColor =  lerp(refraction.rgb,depthCol.rgb,alphaRange) * light.color.rgb  * _Diffcol.rgb;
                     //岸边浪花
-                    i.uv.y -= _Time.y * _FlowSpeed;
                     float4 foamTexCol = SAMPLE_TEXTURE2D(_FoamTex,smp_Point_Repeat,float2(sin( _Time.y * _Foam.y + min(_Foam.x, viewWaterDepth01)/_Foam.x),0.5));
-                    float foamRange = 1 - (min(_Foam.z , viewWaterDepth01) / _Foam.z );// * step(viewWaterDepth01,_Edge)// * step(viewWaterDepth01,_Edge) * step(ratioZ,_Edge)
+                    float foamRange = 1 - (min(_Foam.z , viewWaterDepth01) / _Foam.z );                     // * step(viewWaterDepth01,_Edge)// * step(viewWaterDepth01,_Edge) * step(ratioZ,_Edge)
                     float3 foamCol = foamTexCol.rgb * foamRange;
                     foamCol = step(0.5,min(foamCol * noise,noise));
                     //水面交互
-                    float2 RTuv = i.posWS.xz - _Position.xz; // 像素点相对于相机中心的距离
-                    RTuv = RTuv / (_OrthographicCamSize * 2); // 转为 -0.5~0.5
+                    float2 RTuv = i.posWS.xz - _Position.xz;                                                // 像素点相对于相机中心的距离
+                    RTuv = RTuv / (_OrthographicCamSize * 2);                                               // 转为 -0.5~0.5
                     RTuv += 0.5; // 转为 0~1
-                    float ripples = SAMPLE_TEXTURE2D(_GlobalRipplesRT, smp_Point_Repeat,saturate(RTuv)).b;//采样RenderTexture
+                    float ripples = SAMPLE_TEXTURE2D(_GlobalRipplesRT, smp_Point_Repeat,saturate(RTuv)).b;  //采样RenderTexture
                     ripples = step(2, ripples * 3);
-                    float3 ripplesCol = ripples * _RippleColor;
+                    float3 ripplesCol = ripples * _RippleColor.rgb;
+                    //雨天涟漪
+                    float3 emissive = 1-(frac((_Time * 20)));
+                    float3 emissive2 = 1-(frac((_Time * 10) + 0.5));                                                                 //时间偏移
+                    float RainTex = SAMPLE_TEXTURE2D(_RainTex,smp_Point_Repeat,i.uv * _RainTex_ST.xy).r;
+                    float RainTex2 = SAMPLE_TEXTURE2D(_RainTex,smp_Point_Repeat,i.uv * _RainTex_ST.xy).g;      //UV 偏移
+                    float maskColor = RainTex.r>0.1? saturate(1 - distance(emissive.r - RainTex,0.05)/0.05):0;
+                    float maskColor2 = RainTex2.r>0.1? saturate(1 - distance(emissive2.r - RainTex2,0.05)/0.05):0;
+                    float maskSwitch = saturate(abs(sin((_Time * 0.5))));                                                           //两张图交替淡入
+                    float3 spray = lerp(maskColor , maskColor2 ,maskSwitch) * _RainInt * _RippleColor.rgb;
                     //高光
                     float3 specular = _SpecularColor.rgb * _SpecularStrenght * pow(max(0,nh),_SpecularRange);
                     specular = smoothstep(0.2,1,specular);
@@ -373,10 +387,11 @@ Shader "Island/Water"
                     float fresnel = f0 + (1-f0) * pow(1 - saturate(nv),_FresnelScale);
                     fresnel = saturate(fresnel);	
                 //混合
-                float3 col = diffColor + specular + foamCol + ripplesCol;	
+                float3 col = diffColor + specular + foamCol + ripplesCol + spray;	
                 col = lerp(col,reflection.rgb,fresnel);
                 
                 return float4(col,1.0);
+                //return refraction;
             }
 
             ENDHLSL

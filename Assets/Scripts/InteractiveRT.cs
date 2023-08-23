@@ -29,7 +29,7 @@ public class InteractiveRT : MonoBehaviour
     {
         if (m_ShowRT)
         {
-            GUI.DrawTexture(new Rect(0, 0, 256, 256), m_RenderTex, ScaleMode.ScaleToFit, false, 1);
+            GUI.DrawTexture(new Rect(0, 0, 1024, 1024), m_RenderTex, ScaleMode.ScaleToFit, false, 1);
         }
     }
 }

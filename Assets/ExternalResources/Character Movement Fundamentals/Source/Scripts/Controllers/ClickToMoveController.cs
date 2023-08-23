@@ -78,6 +78,7 @@ public class ClickToMoveController : Controller
 
 	void Update()
 	{
+		Cursor.lockState = CursorLockMode.None;
 		//Handle mouse input (check for input, determine new target position);
 		HandleMouseInput();
 	}

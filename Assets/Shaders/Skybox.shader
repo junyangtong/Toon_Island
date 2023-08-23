@@ -11,7 +11,6 @@ Shader "Island/Skybox"
         [HDR]_GalaxyColor   ("银河颜色", color)=(0.02202741,0.1479551,0.3113208,1.0)
         [HDR]_GalaxyColor1  ("银河颜色1", color)=(0.0,0.1603774,0.02672958,1.0)
         _StarsSpeed         ("星星速度",float) = 0.01
-        _CloudSpeed         ("云层速度",float) = 0.36
         _StarsCutoff        ("星星裁剪范围",float) = 0.9
         _Exponent1          ("星空范围smoothstep参数1", float) = -0.8
         _Exponent2          ("星空范围smoothstep参数1", float) = -0.84
@@ -28,6 +27,7 @@ Shader "Island/Skybox"
         _NightBottomColor   ("夜晚底颜色", color)=(0.415064,0.4092204,0.7169812,1.0)
         _NightTopColor      ("夜晚顶颜色", color)=(0.07591571,0.0,0.509434,1.0)
         [Header(Cloud)]
+        _CloudSpeed         ("云层速度",float) = 0.36
         _CloudCutoff        ("云层裁剪范围",float) = 1.84
         _DistortionSpeed    ("扰动速度", float) = 0.28
         _CloudNoiseScale    ("噪声图大小", float) = 0.33
@@ -119,32 +119,6 @@ Shader "Island/Skybox"
                 float3 texcoord : TEXCOORD2;
             };
 
-               // 星空散列哈希
-                float StarAuroraHash(float3 x) {
-                    float3 p = float3(dot(x,float3(214.1 ,127.7,125.4)),
-                                dot(x,float3(260.5,183.3,954.2)),
-                                dot(x,float3(209.5,571.3,961.2)) );
-
-                    return -0.001 + _StarIntensity * frac(sin(p) * 43758.5453123);
-                }
-
-                // 星空噪声
-                float StarNoise(float3 st){
-                    // 卷动星空
-                    st += float3(0,_Time.y * _StarSpeed,0);
-
-                    // fbm
-                    float3 i = floor(st);
-                    float3 f = frac(st);
-                
-                    float3 u = f * f * (3.0-1.0 * f);
-
-                    return lerp(lerp(dot(StarAuroraHash( i + float3(0.0,0.0,0.0)), f - float3(0.0,0.0,0.0) ), 
-                                    dot(StarAuroraHash( i + float3(1.0,0.0,0.0)), f - float3(1.0,0.0,0.0) ), u.x),
-                                lerp(dot(StarAuroraHash( i + float3(0.0,1.0,0.0)), f - float3(0.0,1.0,0.0) ), 
-                                    dot(StarAuroraHash( i + float3(1.0,1.0,0.0)), f - float3(1.0,1.0,0.0) ), u.y), u.z) ;
-                }
-
             v2f vert (appdata v)
             {
                 v2f o;
@@ -210,41 +184,41 @@ Shader "Island/Skybox"
                     //采样
                     //float2 skyuv = i.posWS.xz*0.1 / clamp(i.posWS.y, 0, 500)*i.posWS.y;
                     float2 skyuv = i.posWS.xz * 0.1 / (step(0,i.posWS.y) * i.posWS.y);
-                    float3 cloud = SAMPLE_TEXTURE2D(_CloudNoise,smp_Point_Repeat,skyuv + float2(_CloudSpeed,_CloudSpeed) * _Time.x);
+                    float3 cloud = SAMPLE_TEXTURE2D(_CloudNoise,smp_Point_Repeat,skyuv + float2(_CloudSpeed,_CloudSpeed) * _Time.x).xyz;
                     //cloud = step(_CloudCutoff, cloud);
                     //噪声
-                    float distort = SAMPLE_TEXTURE2D(_CloudNoise,smp_Point_Repeat,(skyuv + (_Time.x * _DistortionSpeed)) * _DistortScale);
-                    float noise = SAMPLE_TEXTURE2D(_CloudNoise,smp_Point_Repeat,((skyuv + distort ) - (_Time.x * _CloudSpeed)) * _CloudNoiseScale);
+                    float distort = SAMPLE_TEXTURE2D(_CloudNoise,smp_Point_Repeat,(skyuv + (_Time.x * _DistortionSpeed)) * _DistortScale).r;
+                    float noise = SAMPLE_TEXTURE2D(_CloudNoise,smp_Point_Repeat,((skyuv + distort ) - (_Time.x * _CloudSpeed)) * _CloudNoiseScale).r;
                     float finalNoise = saturate(noise) * 3 * saturate(i.posWS.y);
                     //平滑Cutoff
-                    float cloudSec1 = saturate(smoothstep(_CloudCutoff * cloud, _CloudCutoff * cloud + _Fuzziness, finalNoise));
+                    float cloudSec1 = saturate(smoothstep(_CloudCutoff * cloud.r, _CloudCutoff * cloud + _Fuzziness, finalNoise));
                     //颜色分层
-                    float cloudSec2 = saturate(smoothstep(_CloudCutoff * cloud, _CloudCutoff * cloud + _FuzzinessSec, finalNoise));
+                    float cloudSec2 = saturate(smoothstep(_CloudCutoff * cloud.r, _CloudCutoff * cloud + _FuzzinessSec, finalNoise));
                     
                     //昼夜颜色变化
-                    float3 CloudGradients1 = lerp(_CloudNight1, _CloudDay1,sunNightStep);
-                    float3 CloudGradients2 = lerp(_CloudNight2, _CloudDay2,sunNightStep);
+                    float3 CloudGradients1 = lerp(_CloudNight1, _CloudDay1,sunNightStep).rgb;
+                    float3 CloudGradients2 = lerp(_CloudNight2, _CloudDay2,sunNightStep).rgb;
                     float3 cloudColin = lerp(0,CloudGradients1,cloudSec2);
                     float3 cloudColout = lerp(0,CloudGradients2,cloudSec1 - cloudSec2);
                     cloud = cloudColin + cloudColout;
                 //星空
-                float3 stars = SAMPLE_TEXTURE2D(_Stars,smp_Point_Repeat,i.uv.xz * 0.6 + float2(_StarsSpeed,_StarsSpeed) * _Time.x);
-                float3 starNoiseTex = SAMPLE_TEXTURE2D(_GalaxyNoiseTex,smp_Point_Repeat,i.uv.xz + float2(_StarsSpeed,_StarsSpeed) * _Time.y);
+                float3 stars = SAMPLE_TEXTURE2D(_Stars,smp_Point_Repeat,i.uv.xz * 0.6 + float2(_StarsSpeed,_StarsSpeed) * _Time.x).rgb;
+                float3 starNoiseTex = SAMPLE_TEXTURE2D(_GalaxyNoiseTex,smp_Point_Repeat,i.uv.xz + float2(_StarsSpeed,_StarsSpeed) * _Time.y).rgb;
                 stars = step(_StarsCutoff, stars);
                 float starPos = smoothstep(0.21,0.31,stars.r) * starMask;
                 float starBright = smoothstep(0.4,0.5,starNoiseTex.r);
                 
                 float starColor = starPos * starBright;
                 starColor = starColor * galaxy.r * 0.2 + starColor * (1-galaxy.r) * 3;
-                starColor *= (1 - cloud);
+                float3 StarColor = starColor * (1 - cloud);
 
                 //地平线/模拟大气散射
                 float3 horizon = abs((i.uv.y * _HorizonIntensity) - _HorizonHeight);
                 float Newp = smoothstep(-0.2,0.2,light.direction.y);
-                horizon = saturate((1 - horizon)) * (lerp(_HorizonColor,0,Newp) * Newp);
+                horizon = saturate((1 - horizon)) * (lerp(_HorizonColor.rgb,float3(0.0,0.0,0.0),Newp) * Newp);
 
                 //混合
-                float3 finalColor = SunMoon + skyGradients + (starColor + galaxyColor)  + horizon + cloud;//+finalSunInfColor
+                float3 finalColor = SunMoon + skyGradients + (StarColor + galaxyColor.rgb)  + horizon + cloud;//+finalSunInfColor
                 finalColor += skyGradients * 0.2;
 
                 return float4(finalColor,1.0);
