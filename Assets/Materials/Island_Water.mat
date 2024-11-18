@@ -65,10 +65,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _AlphaRange: 5
+    - _AlphaRange: 0.9
     - _Amplitude: 0.249
     - _CubemapMip: 0
-    - _DepthRange: 10.6
+    - _DepthRange: 0.28
     - _FlowSpeed: 1
     - _FoamRange: 1
     - _FresnelScale: 6.7
